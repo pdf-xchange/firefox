@@ -34,7 +34,16 @@
  * These macros are designed for use by library interfaces -- not for normal
  * methods or data used cross-file.
  */
-#if defined(WIN32)
+#if defined(JS_STANDALONE) && !defined(MOZ_MEMORY) && defined(STATIC_JS_API)
+/*
+ * Fully-static standalone SpiderMonkey (see the MFBT_API block below for the
+ * rationale): everything ends up in one final binary with no DLL/SO boundary,
+ * so even the raw MOZ_EXPORT primitive must expand to nothing - otherwise a
+ * stray `MOZ_EXPORT void foo();` somewhere in mfbt/mozglue/js would leak
+ * `foo` into the consuming binary's export table.
+ */
+#  define MOZ_EXPORT /* nothing */
+#elif defined(WIN32)
 #  define MOZ_EXPORT __declspec(dllexport)
 #else /* Unix */
 #  ifdef HAVE_VISIBILITY_ATTRIBUTE
@@ -74,16 +83,25 @@
  * export mfbt declarations when building mfbt, and they expose import mfbt
  * declarations when using mfbt.
  */
-#if defined(IMPL_MFBT) ||                              \
+#if defined(JS_STANDALONE) && !defined(MOZ_MEMORY) && defined(STATIC_JS_API)
+/*
+ * Fully-static standalone SpiderMonkey: jemalloc off (so mozglue is built as
+ * a static Library, not a SharedLibrary) and the JS API is static-non-export
+ * (--disable-shared-js --disable-export-js). All MFBT/mozglue/JS code ends up
+ * in one final binary with no DLL/SO boundary, so MFBT_API must expand to
+ * nothing for both the implementation TUs (IMPL_MFBT defined) and consumer
+ * TUs - otherwise the implementation side would emit dllexport into the
+ * consuming binary's export table. This branch must precede the IMPL_MFBT
+ * branch so it wins inside MFBT/mozglue compilation units.
+ */
+#  define MFBT_API
+#  define MFBT_DATA
+#elif defined(IMPL_MFBT) ||                            \
     (defined(JS_STANDALONE) && !defined(MOZ_MEMORY) && \
      (defined(EXPORT_JS_API) || defined(STATIC_EXPORTABLE_JS_API)))
 #  define MFBT_API MOZ_EXPORT
 #  define MFBT_DATA MOZ_EXPORT
 #else
-#  if defined(JS_STANDALONE) && !defined(MOZ_MEMORY) && defined(STATIC_JS_API)
-#    define MFBT_API
-#    define MFBT_DATA
-#  else
 /*
  * On linux mozglue is linked in the program and we link libxul.so with
  * -z,defs. Normally that causes the linker to reject undefined references in
@@ -91,13 +109,12 @@
  * symbols. We add the weak attribute to the import version of the MFBT API
  * macros to exploit this.
  */
-#    if defined(MOZ_GLUE_IN_PROGRAM)
-#      define MFBT_API __attribute__((weak)) MOZ_IMPORT_API
-#      define MFBT_DATA __attribute__((weak)) MOZ_IMPORT_DATA
-#    else
-#      define MFBT_API MOZ_IMPORT_API
-#      define MFBT_DATA MOZ_IMPORT_DATA
-#    endif
+#  if defined(MOZ_GLUE_IN_PROGRAM)
+#    define MFBT_API __attribute__((weak)) MOZ_IMPORT_API
+#    define MFBT_DATA __attribute__((weak)) MOZ_IMPORT_DATA
+#  else
+#    define MFBT_API MOZ_IMPORT_API
+#    define MFBT_DATA MOZ_IMPORT_DATA
 #  endif
 #endif
 

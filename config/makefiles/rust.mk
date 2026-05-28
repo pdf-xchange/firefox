@@ -544,6 +544,13 @@ ifeq (WASI,$(OS_ARCH))
 force-cargo-library-build: CARGO_RUSTCFLAGS += -C target-feature=-crt-static
 endif
 
+# Match the C/C++ side's MSVC runtime selection on Windows. Without this the
+# Rust stdlib pulls in -MD (DLL CRT) and clashes with -MT C/C++ TUs at link
+# time (LNK4098: defaultlib 'LIBCMT' conflicts with use of other libs).
+ifdef MOZ_STATIC_MSVCRT
+force-cargo-library-build: CARGO_RUSTCFLAGS += -C target-feature=+crt-static
+endif
+
 # Assume any system libraries rustc links against are already in the target's LIBS.
 #
 # We need to run cargo unconditionally, because cargo is the only thing that

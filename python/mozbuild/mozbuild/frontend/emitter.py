@@ -1357,8 +1357,9 @@ class TreeMetadataEmitter(LoggingMixin):
             context.config.substs.get("OS_ARCH") == "WINNT"
             and context.config.substs.get("CC_TYPE") == "clang-cl"
         ):
-            use_static_msvcrt = context.get(
-                "USE_STATIC_MSVCRT"
+            use_static_msvcrt = (
+                context.get("USE_STATIC_MSVCRT")
+                or context.config.substs.get("MOZ_STATIC_MSVCRT")
             ) and not context.config.substs.get("MOZ_ASAN")
             rtl_flag = "-MT" if use_static_msvcrt else "-MD"
             if context.config.substs.get("MOZ_DEBUG") and not context.config.substs.get(

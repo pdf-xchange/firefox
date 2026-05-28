@@ -3457,19 +3457,54 @@ def rc_names(c_compiler, toolchain_prefix):
 check_prog("RC", rc_names, paths=clang_search_path, when=target_is_windows)
 
 
+option(
+    "--disable-thin-archives",
+    help="{Use|Do not use} llvm-lib/llvm-ar thin archives. Disable to "
+    "produce MSVC link.exe-compatible static libraries (no '!<thin>' "
+    "magic, no '/' member entries pointing at external object files).",
+)
+
+
+@depends("--disable-thin-archives")
+def thin_archives(value):
+    if value:
+        return True
+
+
+set_config("MOZ_THIN_ARCHIVES", thin_archives)
+
+
+option(
+    "--enable-static-msvcrt",
+    help="Statically link against the MSVC runtime (-MT) instead of the DLL "
+    "runtime (-MD). Applies to all C/C++ TUs and to Rust crates via "
+    "+crt-static. Windows + clang-cl only.",
+)
+
+
+@depends("--enable-static-msvcrt")
+def static_msvcrt(value):
+    if value:
+        return True
+
+
+set_config("MOZ_STATIC_MSVCRT", static_msvcrt)
+
+
 @template
 def ar_config(c_compiler, toolchain_prefix=None):
     if not toolchain_prefix:
         toolchain_prefix = dependable(None)
 
-    @depends(toolchain_prefix, c_compiler, "AR_FLAGS")
+    @depends(toolchain_prefix, c_compiler, "AR_FLAGS", thin_archives)
     @imports(_from="mozshellutil", _import="split")
-    def ar_config(toolchain_prefix, c_compiler, env_flags):
+    def ar_config(toolchain_prefix, c_compiler, env_flags, thin_archives):
         extra_ar_flags = tuple(split(env_flags[0]))
         if c_compiler.type == "clang-cl":
+            base_flags = ("-llvmlibthin",) if thin_archives else ()
             return namespace(
                 names=("llvm-lib",),
-                flags=("-llvmlibthin", "-out:$@") + extra_ar_flags,
+                flags=base_flags + ("-out:$@",) + extra_ar_flags,
             )
 
         names = tuple("%s%s" % (p, "ar") for p in (toolchain_prefix or ()) + ("",))
